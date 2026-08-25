@@ -1097,8 +1097,8 @@
         alert('Please upload a .json file');
         return;
       }
-      if (file.size > 50 * 1024 * 1024) {
-        alert('File too large (max 50MB)');
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File too large (max 10MB).\nYour file: ' + (file.size / 1024 / 1024).toFixed(1) + 'MB');
         return;
       }
       document.getElementById('file-name').textContent = file.name;
@@ -1108,7 +1108,15 @@
       const reader = new FileReader();
       reader.onload = function (e) {
         try {
-          const data = JSON.parse(e.target.result);
+          // Use Uint8Array + TextDecoder for better mobile compatibility
+          const bytes = new Uint8Array(e.target.result);
+          const text = new TextDecoder('utf-8').decode(bytes);
+          if (!text || text.length < 10) {
+            alert('File appears to be empty or corrupted.');
+            document.getElementById('loading').classList.add('hidden');
+            return;
+          }
+          const data = JSON.parse(text);
 
           // Validate JSON structure
           if (!data.semanticSegments || !Array.isArray(data.semanticSegments)) {
@@ -1158,11 +1166,15 @@
           document.getElementById('btn-pause').disabled = false;
           document.getElementById('btn-reset').disabled = false;
         } catch (err) {
-          alert('Error parsing JSON: ' + err.message);
+          alert('Error parsing JSON: ' + err.message + '\n\nMake sure you upload a valid Google Timeline JSON export file.');
           document.getElementById('loading').classList.add('hidden');
         }
       };
-      reader.readAsText(file);
+      reader.onerror = function () {
+        alert('Error reading file. Please try again.');
+        document.getElementById('loading').classList.add('hidden');
+      };
+      reader.readAsArrayBuffer(file);
     }
 
     // File input
