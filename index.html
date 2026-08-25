@@ -1098,6 +1098,11 @@
         return;
       }
       const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      // Mobile browsers may report 0 size when file is from cloud storage
+      if (file.size === 0) {
+        alert('File size is 0 bytes. This usually happens when the file is still in cloud storage.\n\nPlease download the file to your device first, then try uploading again.');
+        return;
+      }
       const maxSize = isMobile ? 3 * 1024 * 1024 : 10 * 1024 * 1024;
       if (file.size > maxSize) {
         const limit = isMobile ? '3MB' : '10MB';
@@ -1111,16 +1116,20 @@
       const reader = new FileReader();
       reader.onload = function (e) {
         try {
-          // Use TextDecoder for reliable cross-browser support
           const bytes = new Uint8Array(e.target.result);
+          console.log('File bytes loaded:', bytes.length, 'bytes');
+          // Use TextDecoder for reliable cross-browser support
           const decoder = new TextDecoder('utf-8');
           let text = decoder.decode(bytes);
           // Remove BOM if present
           if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
           // Trim whitespace
           text = text.trim();
+          console.log('Text length after decode:', text.length, 'chars');
+          console.log('First 200 chars:', text.substring(0, 200));
+          console.log('Last 100 chars:', text.substring(text.length - 100));
           if (!text || text.length < 10) {
-            alert('File appears to be empty or corrupted.');
+            alert('File appears to be empty or corrupted.\nRead ' + bytes.length + ' bytes but text is ' + text.length + ' chars.');
             document.getElementById('loading').classList.add('hidden');
             return;
           }
@@ -1174,7 +1183,12 @@
           document.getElementById('btn-pause').disabled = false;
           document.getElementById('btn-reset').disabled = false;
         } catch (err) {
-          alert('Error parsing JSON: ' + err.message + '\n\nMake sure you upload a valid Google Timeline JSON export file.');
+          console.error('JSON parse error:', err);
+          console.log('File size:', file.size, 'bytes');
+          alert('Error parsing JSON: ' + err.message +
+            '\n\nFile: ' + file.name +
+            '\nSize reported: ' + (file.size / 1024).toFixed(1) + 'KB' +
+            '\n\nTip: Open browser console (F12) for debug info.');
           document.getElementById('loading').classList.add('hidden');
         }
       };
