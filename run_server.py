@@ -7,7 +7,7 @@ import os
 import sys
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-PORT = 8765
+PORT = 1300
 
 os.chdir(DIR)
 
