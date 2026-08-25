@@ -1111,7 +1111,10 @@
       const reader = new FileReader();
       reader.onload = function (e) {
         try {
-          let text = e.target.result;
+          // Use TextDecoder for reliable cross-browser support
+          const bytes = new Uint8Array(e.target.result);
+          const decoder = new TextDecoder('utf-8');
+          let text = decoder.decode(bytes);
           // Remove BOM if present
           if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
           // Trim whitespace
@@ -1179,7 +1182,7 @@
         alert('Error reading file. Please try again.');
         document.getElementById('loading').classList.add('hidden');
       };
-      reader.readAsText(file);
+      reader.readAsArrayBuffer(file);
     }
 
     // File input
