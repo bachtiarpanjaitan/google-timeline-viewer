@@ -145,6 +145,8 @@
 
     #map {
       flex: 1;
+      width: 100%;
+      height: 100%;
     }
 
     #app:not(.loaded) #map {
@@ -863,6 +865,10 @@
       isPlaying = true;
       document.getElementById('btn-play').textContent = '▶ Playing...';
 
+      // Center map on current point
+      const first = allPoints[animIndex];
+      map.setView([first.lat, first.lng], 12);
+
       if (animIndex >= allPoints.length - 1) {
         animIndex = 0;
         lerpProgress = 0;
@@ -1133,14 +1139,21 @@
           allPoints = visitMode ? buildVisitOnlyPoints() : buildTimelinePoints();
           buildActivitySegments();
           updateStats();
-          // Re-init map
+          // Show map first, then init
+          document.getElementById('app').classList.add('loaded');
           if (map) {
             map.remove();
           }
           initMap();
           renderStaticPaths();
+          // Wait for browser to render, then fix map size
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              map.invalidateSize();
+              map.setView([allPoints[0].lat, allPoints[0].lng], 12);
+            });
+          });
           document.getElementById('loading').classList.add('hidden');
-          document.getElementById('app').classList.add('loaded');
           document.getElementById('btn-play').disabled = false;
           document.getElementById('btn-pause').disabled = false;
           document.getElementById('btn-reset').disabled = false;
