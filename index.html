@@ -1097,8 +1097,11 @@
         alert('Please upload a .json file');
         return;
       }
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File too large (max 10MB).\nYour file: ' + (file.size / 1024 / 1024).toFixed(1) + 'MB');
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const maxSize = isMobile ? 3 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        const limit = isMobile ? '3MB' : '10MB';
+        alert('File too large (max ' + limit + ').\nYour file: ' + (file.size / 1024 / 1024).toFixed(1) + 'MB\n\nTip: Use smaller date range in Google Takeout export.');
         return;
       }
       document.getElementById('file-name').textContent = file.name;
@@ -1108,9 +1111,11 @@
       const reader = new FileReader();
       reader.onload = function (e) {
         try {
-          // Use Uint8Array + TextDecoder for better mobile compatibility
-          const bytes = new Uint8Array(e.target.result);
-          const text = new TextDecoder('utf-8').decode(bytes);
+          let text = e.target.result;
+          // Remove BOM if present
+          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+          // Trim whitespace
+          text = text.trim();
           if (!text || text.length < 10) {
             alert('File appears to be empty or corrupted.');
             document.getElementById('loading').classList.add('hidden');
@@ -1174,7 +1179,7 @@
         alert('Error reading file. Please try again.');
         document.getElementById('loading').classList.add('hidden');
       };
-      reader.readAsArrayBuffer(file);
+      reader.readAsText(file);
     }
 
     // File input
