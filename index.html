@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Timeline - Animated Path</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f12;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      height: 100vh;
+    }
+
+    #sidebar {
+      width: 360px;
+      background: #1a1a1e;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #333;
+      overflow-y: auto;
+    }
+
+    #sidebar h1 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #64b5f6;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    #controls button {
+      padding: 6px 12px;
+      font-size: 12px;
+      border: 1px solid #3a3a44;
+      background: #25252a;
+      color: #c0c0c0;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    #controls button:hover {
+      background: #303036;
+      border-color: #555;
+      color: #e0e0e0;
+    }
+
+    #controls button.active {
+      background: #1976d2;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    #controls button.play-btn {
+      background: #2e7d32;
+      border-color: #2e7d32;
+      color: #fff;
+    }
+
+    #controls button.play-btn:hover {
+      background: #388e3c;
+    }
+
+    #info {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+
+    #info span {
+      color: #64b5f6;
+    }
+
+    #upload-area {
+      margin-bottom: 14px;
+    }
+
+    #drop-zone {
+      border: 2px dashed #3a3a44;
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: #888;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    #drop-zone:hover,
+    #drop-zone.dragover {
+      border-color: #64b5f6;
+      color: #64b5f6;
+      background: rgba(100, 181, 246, 0.05);
+    }
+
+    #browse-btn {
+      color: #64b5f6;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    #stats {
+      font-size: 11px;
+      color: #888;
+      line-height: 1.8;
+      margin-bottom: 12px;
+    }
+
+    #stats span {
+      color: #9575cd;
+    }
+
+    #map {
+      flex: 1;
+    }
+
+    #app:not(.loaded) #map {
+      display: none;
+    }
+
+    .leaflet-popup-content {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .legend {
+      background: rgba(26, 26, 30, 0.92) !important;
+      border-radius: 6px;
+      padding: 10px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .legend i {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      margin-right: 6px;
+      vertical-align: middle;
+      border-radius: 2px;
+    }
+
+    .color-visits {
+      background: #64b5f6;
+    }
+
+    .color-path {
+      background: #4db6ac;
+    }
+
+    .color-anim {
+      background: #ff5252;
+    }
+
+    .legend-item {
+      margin: 4px 0;
+      font-size: 11px;
+    }
+
+    #loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 16px;
+      color: #64b5f6;
+      z-index: 1000;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64b5f6;
+      box-shadow: 0 0 8px #64b5f6;
+      border: 2px solid #fff;
+      box-sizing: border-box;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      70% {
+        transform: scale(2.2);
+        opacity: 0.3;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+
+    .moving-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff5252;
+      box-shadow: 0 0 12px #ff5252, 0 0 24px #ff5252;
+      border: 2px solid #fff;
+      box-sizing: border-box;
+    }
+
+    .marker-container {
+      background: transparent !important;
+      border: none !important;
+      overflow: visible !important;
+    }
+
+    /* Animation controls */
+    #anim-controls {
+      background: #22222a;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    #anim-controls h3 {
+      font-size: 11px;
+      color: #64b5f6;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .anim-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .anim-row label {
+      font-size: 11px;
+      color: #888;
+      min-width: 60px;
+    }
+
+    .anim-row input[type="range"] {
+      flex: 1;
+    }
+
+    .anim-row .val {
+      font-size: 11px;
+      color: #64b5f6;
+      min-width: 30px;
+      text-align: right;
+    }
+
+    #progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    #progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4db6ac, #64b5f6, #ff5252);
+      width: 0%;
+      transition: width 0.1s;
+    }
+
+    #current-time {
+      font-size: 11px;
+      color: #64b5f6;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .anim-btn-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .anim-btn-row button {
+      padding: 6px 16px;
+      font-size: 12px;
+      border: 1px solid #3a3a44;
+      background: #25252a;
+      color: #c0c0c0;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .anim-btn-row button:hover {
+      background: #303036;
+      border-color: #555;
+    }
+
+    .anim-btn-row button.primary {
+      background: #1976d2;
+      border-color: #1976d2;
+      color: #fff;
+    }
+
+    .anim-btn-row button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 16px;
+      color: #64b5f6;
+      z-index: 1000;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loading">Loading timeline data...</div>
+  <div id="app">
+    <div id="sidebar">
+      <h1>Google Timeline By Basapadi</h1>
+      <div id="upload-area">
+        <input type="file" id="file-input" accept=".json" hidden>
+        <div id="drop-zone">
+          📂 Drop timeline.json here or <span id="browse-btn">browse</span>
+        </div>
+      </div>
+      <div id="controls">
+        <button id="btn-all-paths" class="active">All paths</button>
+        <button id="btn-visit-mode">Visit mode</button>
+      </div>
+      <div id="info">
+        File: <span id="file-name">--</span><br>
+        Date range: <span id="date-range">--</span><br>
+        Segments: <span id="total-segments">--</span>
+      </div>
+      <div id="stats"></div>
+      <div id="anim-controls">
+        <h3>Animation</h3>
+        <div id="progress-bar">
+          <div id="progress-fill"></div>
+        </div>
+        <div id="current-time">--</div>
+        <div class="anim-row">
+          <label>Speed</label>
+          <input type="range" id="speed-slider" min="1" max="100" value="80">
+          <span class="val" id="speed-val">80</span>
+        </div>
+        <div class="anim-row">
+          <label>Auto Zoom</label>
+          <input type="checkbox" id="auto-zoom">
+          <span class="val" id="zoom-status" style="color: #ff5252;">OFF</span>
+        </div>
+        <div class="anim-btn-row">
+          <button id="btn-play" class="primary" disabled>&#9654; Play</button>
+          <button id="btn-pause" disabled>&#9646;&#9646; Pause</button>
+          <button id="btn-reset" disabled>&#8634; Reset</button>
+        </div>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script>
+    // ---- Data ----
+    const DATA_FILE = 'Linimasa.json';
+    let segments = [];
+    let allPoints = []; // sorted by time: [{lat, lng, time, type, label}]
+    let map, clusterGroup, staticPathLayer, completedPathLayer, animLayer, animMarker;
+    let isPlaying = false;
+    let animIndex = 0;
+    let animFrame = null;
+    let speed = 80; // points per frame
+
+    // ---- Parse ----
+    function parseLatLng(str) {
+      if (!str) return null;
+      const parts = str.replace(/°/g, '').replace(/−/g, '-').split(',').map(p => p.trim());
+      const lat = parseFloat(parts[0]), lng = parseFloat(parts[1]);
+      if (isNaN(lat) || isNaN(lng)) return null;
+      return { lat, lng };
+    }
+
+    function parseTime(ts) {
+      return new Date(ts).getTime();
+    }
+
+    // ---- Collect all points sorted by time ----
+    function buildTimelinePoints() {
+      const pts = [];
+
+      // 1. Visit locations (as start/end points)
+      for (const seg of segments) {
+        if ('visit' in seg && seg.visit.topCandidate) {
+          const v = seg.visit.topCandidate;
+          if (v.placeLocation && v.placeLocation.latLng) {
+            const ll = parseLatLng(v.placeLocation.latLng);
+            if (!ll) continue;
+            pts.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(seg.startTime),
+              type: 'visit',
+              label: v.semanticType || v.type || 'Visit'
+            });
+            // Also add departure point
+            pts.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(seg.endTime),
+              type: 'visit-end',
+              label: `Depart: ${v.semanticType || v.type || 'Visit'}`
+            });
+          }
+        }
+      }
+
+      // 2. Timeline path points
+      for (const seg of segments) {
+        if ('timelinePath' in seg) {
+          for (const p of (seg.timelinePath || [])) {
+            if (!p.point) continue;
+            const ll = parseLatLng(p.point);
+            if (!ll) continue;
+            pts.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(p.time),
+              type: 'path',
+              label: 'Moving'
+            });
+          }
+        }
+      }
+
+      // 3. Activity points (start + end)
+      for (const seg of segments) {
+        if ('activity' in seg) {
+          const a = seg.activity;
+          if (a.start && a.start.latLng) {
+            const ll = parseLatLng(a.start.latLng);
+            if (ll) pts.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(seg.startTime),
+              type: 'activity',
+              label: a.topCandidate?.type || 'Activity'
+            });
+          }
+          if (a.end && a.end.latLng) {
+            const ll = parseLatLng(a.end.latLng);
+            if (ll) pts.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(seg.endTime),
+              type: 'activity',
+              label: a.topCandidate?.type || 'Activity'
+            });
+          }
+        }
+      }
+
+      // Sort by time
+      pts.sort((a, b) => a.time - b.time);
+
+      // Remove consecutive duplicates
+      const clean = [pts[0]];
+      for (let i = 1; i < pts.length; i++) {
+        const prev = clean[clean.length - 1];
+        const cur = pts[i];
+        if (cur.time === prev.time && cur.lat === prev.lat && cur.lng === prev.lng) continue;
+        clean.push(cur);
+      }
+
+      return clean;
+    }
+
+    // ---- Build visit-only points (animation from visit to visit) ----
+    function buildVisitOnlyPoints() {
+      const visits = [];
+      for (const seg of segments) {
+        if ('visit' in seg && seg.visit.topCandidate) {
+          const v = seg.visit.topCandidate;
+          if (v.placeLocation && v.placeLocation.latLng) {
+            const ll = parseLatLng(v.placeLocation.latLng);
+            if (!ll) continue;
+            visits.push({
+              lat: ll.lat, lng: ll.lng,
+              time: parseTime(seg.startTime),
+              type: 'visit',
+              label: v.semanticType || v.type || 'Visit',
+              placeId: v.placeId,
+              probability: seg.visit.probability,
+              duration: (parseTime(seg.endTime) - parseTime(seg.startTime)) / (1000 * 60 * 60)
+            });
+          }
+        }
+      }
+
+      visits.sort((a, b) => a.time - b.time);
+
+      // Deduplicate consecutive visits to same location within 1 hour
+      const clean = [visits[0]];
+      for (let i = 1; i < visits.length; i++) {
+        const prev = clean[clean.length - 1];
+        const cur = visits[i];
+        const dist = Math.sqrt(Math.pow(cur.lat - prev.lat, 2) + Math.pow(cur.lng - prev.lng, 2));
+        const timeDiff = (cur.time - prev.time) / (1000 * 60 * 60);
+        if (dist < 0.0005 && timeDiff < 1) continue; // same place within 1 hour
+        clean.push(cur);
+      }
+
+      return clean;
+    }
+
+    let visitMode = false; // true = visit-only, false = all points
+
+    // ---- Transport type icons (emoji) ----
+    const TRANSPORT_ICONS = {
+      'MOTORCYCLING': '🏍️',
+      'IN_PASSENGER_VEHICLE': '🚗',
+      'WALKING': '🚶',
+      'IN_BUS': '🚌',
+      'FLYING': '✈️',
+      'IN_TRAIN': '🚆',
+      'CYCLING': '🚲',
+      'UNKNOWN_ACTIVITY_TYPE': '❓'
+    };
+
+    // Activity segments with time ranges
+    let activitySegments = [];
+
+    function buildActivitySegments() {
+      activitySegments = [];
+      for (const seg of segments) {
+        if ('activity' in seg) {
+          const type = seg.activity.topCandidate?.type || 'UNKNOWN_ACTIVITY_TYPE';
+          activitySegments.push({
+            start: parseTime(seg.startTime),
+            end: parseTime(seg.endTime),
+            type: type
+          });
+        }
+      }
+      activitySegments.sort((a, b) => a.start - b.start);
+    }
+
+    function getTransportAtTime(time) {
+      for (const seg of activitySegments) {
+        if (time >= seg.start && time <= seg.end) {
+          return seg.type;
+        }
+      }
+      return null;
+    }
+
+    // ---- Stats ----
+    function formatTime(ts) {
+      return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    }
+
+    function updateStats() {
+      const dates = segments.map(s => new Date(s.startTime));
+      const minDate = new Date(Math.min(...dates));
+      const maxDate = new Date(Math.max(...dates));
+      document.getElementById('date-range').textContent =
+        `${minDate.toLocaleDateString()} – ${maxDate.toLocaleDateString()}`;
+      document.getElementById('total-segments').textContent = segments.length;
+
+      const visits = segments.filter(s => 'visit' in s).length;
+      const activities = segments.filter(s => 'activity' in s).length;
+      const pathSegs = segments.filter(s => 'timelinePath' in s).length;
+      document.getElementById('stats').innerHTML =
+        `Visits: <span>${visits}</span> | ` +
+        `Activities: <span>${activities}</span> | ` +
+        `Paths: <span>${pathSegs}</span><br>` +
+        `Timeline points: <span>${allPoints.length}</span>`;
+    }
+
+    // ---- Map ----
+    function initMap() {
+      // Start centered on first point
+      const first = allPoints[0];
+
+      map = L.map('map', {
+        center: [first.lat, first.lng],
+        zoom: 12,
+        attributionControl: false
+      });
+
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19
+      }).addTo(map);
+
+      // Static path layer (all points connected)
+      staticPathLayer = L.layerGroup();
+
+      // Completed path layer - keeps the path that has been traversed
+      completedPathLayer = L.layerGroup().addTo(map);
+
+      // Animation layer - only for the active/current segment
+      animLayer = L.layerGroup().addTo(map);
+
+      // Moving marker
+      animMarker = L.marker([0, 0], {
+        icon: L.divIcon({
+          html: '<div class="moving-dot"></div>',
+          className: 'marker-container',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        })
+      });
+
+      // Legend
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = () => {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+      <div class="legend-item"><i class="color-visits"></i> Visits</div>
+      <div class="legend-item"><i class="color-path"></i> Path trail</div>
+      <div class="legend-item"><i class="color-anim"></i> Animation</div>
+    `;
+        return div;
+      };
+      legend.addTo(map);
+    }
+
+    // ---- Render static (non-animated) elements ----
+    function renderStaticPaths() {
+      // Draw all points as a faint background path
+      if (allPoints.length < 2) return;
+      const coords = allPoints.map(p => [p.lat, p.lng]);
+      const line = L.polyline(coords, {
+        color: '#4db6ac', weight: 1.5, opacity: 0.2, dashArray: '5,10'
+      });
+      staticPathLayer.addLayer(line);
+    }
+
+    function renderVisits(clusterMode) {
+      if (clusterMode) {
+        clusterGroup = L.markerClusterGroup({ chunkedLoading: true, spiderfyOnMaxZoom: true });
+      } else {
+        clusterGroup = L.layerGroup();
+      }
+
+      const visits = segments.filter(s => 'visit' in s);
+      for (const seg of visits) {
+        const v = seg.visit.topCandidate;
+        if (!v || !v.placeLocation || !v.placeLocation.latLng) continue;
+        const ll = parseLatLng(v.placeLocation.latLng);
+        if (!ll) continue;
+
+        const marker = L.marker([ll.lat, ll.lng], {
+          icon: L.divIcon({ html: '<div class="pulse-dot"></div>', className: 'visit-marker', iconSize: [14, 14] })
+        });
+        const placeType = v.semanticType || v.type || 'Unknown';
+        const durHours = (new Date(seg.endTime) - new Date(seg.startTime)) / (1000 * 3600);
+        marker.bindPopup(
+          `<h4>${placeType}</h4>` +
+          `Start: ${formatTime(seg.startTime)}<br>` +
+          `End: ${formatTime(seg.endTime)}<br>` +
+          `Duration: ${durHours.toFixed(1)}h<br>` +
+          `Confidence: ${(seg.visit.probability * 100).toFixed(0)}%`
+        );
+        clusterGroup.addLayer(marker);
+      }
+    }
+
+    // ---- Adaptive Zoom ----
+    let lastZoomChange = 0;
+    const ZOOM_COOLDOWN = 12; // frames between zoom changes
+    const NEARBY_THRESHOLD = 0.0002; // ~20m in degrees
+    const FAR_THRESHOLD = 0.001; // ~100m in degrees
+
+    function adaptZoom(prev, cur, frameCount) {
+      if (!document.getElementById('auto-zoom').checked) return;
+
+      const dist = Math.sqrt(
+        Math.pow(cur.lat - prev.lat, 2) + Math.pow(cur.lng - prev.lng, 2)
+      );
+
+      const bounds = map.getBounds();
+      const inBounds = bounds.contains([cur.lat, cur.lng]);
+      const curZoom = map.getZoom();
+
+      // Point outside view - center on it immediately
+      if (!inBounds) {
+        map.setView([cur.lat, cur.lng], Math.max(curZoom - 1, 13), { animate: true, duration: 0.25 });
+        lastZoomChange = frameCount;
+        return;
+      }
+
+      // Only adapt zoom level on cooldown
+      if (frameCount - lastZoomChange < ZOOM_COOLDOWN) {
+        return;
+      }
+
+      // Points too close - zoom in for detail
+      if (dist < NEARBY_THRESHOLD && curZoom < 16) {
+        map.setView([cur.lat, cur.lng], Math.min(curZoom + 1, 16), { animate: true, duration: 0.2 });
+        lastZoomChange = frameCount;
+      }
+      // Points far apart - zoom out slightly
+      else if (dist > FAR_THRESHOLD && curZoom > 13) {
+        map.setView([cur.lat, cur.lng], Math.max(curZoom - 1, 13), { animate: true, duration: 0.2 });
+        lastZoomChange = frameCount;
+      }
+    }
+
+    // ---- Animation ----
+    let frameCount = 0;
+    let currentPos = { lat: 0, lng: 0 };
+    let lerpProgress = 0; // 0..1 between two points
+    let framesPerSegment = 30;
+
+    function getFramesPerSegment() {
+      // In non-visit mode, speed is tripled
+      const effectiveSpeed = visitMode ? speed : Math.min(100, speed * 3);
+      // Smooth exponential decay
+      // speed 1=150, 10=91, 20=55, 30=33, 50=12, 80=3, 100=2
+      return Math.max(1, Math.round(150 * Math.exp(-0.05 * (effectiveSpeed - 1))));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function startAnimation() {
+      if (isPlaying) return;
+      isPlaying = true;
+      document.getElementById('btn-play').textContent = '▶ Playing...';
+
+      if (animIndex >= allPoints.length - 1) {
+        animIndex = 0;
+        lerpProgress = 0;
+        animLayer.clearLayers();
+        frameCount = 0;
+        lastZoomChange = 0;
+        currentPos = { lat: allPoints[0].lat, lng: allPoints[0].lng };
+      }
+
+      framesPerSegment = getFramesPerSegment();
+      animate();
+    }
+
+    function animate() {
+      if (!isPlaying) return;
+
+      framesPerSegment = getFramesPerSegment();
+      lerpProgress += 1 / framesPerSegment;
+
+      // If we've reached the next point, advance
+      if (lerpProgress >= 1) {
+        lerpProgress = 0;
+        animIndex++;
+
+        if (animIndex >= allPoints.length - 1) {
+          currentPos = { lat: allPoints[allPoints.length - 1].lat, lng: allPoints[allPoints.length - 1].lng };
+          updateAnimVisuals();
+          stopAnimation();
+          return;
+        }
+      }
+
+      // Interpolate position (same speed for every segment)
+      const p1 = allPoints[animIndex];
+      const p2 = allPoints[Math.min(animIndex + 1, allPoints.length - 1)];
+      currentPos.lat = lerp(p1.lat, p2.lat, lerpProgress);
+      currentPos.lng = lerp(p1.lng, p2.lng, lerpProgress);
+
+      // Adaptive zoom (only check occasionally for perf)
+      if (frameCount % 3 === 0) {
+        const prevPt = allPoints[Math.max(0, animIndex - 1)];
+        adaptZoom(prevPt, currentPos, frameCount);
+      }
+
+      // Only pan map when marker is near edge (10% margin from border)
+      const bounds = map.getBounds();
+      const padLat = (bounds.getNorth() - bounds.getSouth()) * 0.1;
+      const padLng = (bounds.getEast() - bounds.getWest()) * 0.1;
+      if (currentPos.lat > bounds.getNorth() - padLat ||
+        currentPos.lat < bounds.getSouth() + padLat ||
+        currentPos.lng > bounds.getEast() - padLng ||
+        currentPos.lng < bounds.getWest() + padLng) {
+        map.panInsideBounds([
+          [currentPos.lat - padLat, currentPos.lng - padLng],
+          [currentPos.lat + padLat, currentPos.lng + padLng]
+        ], { animate: true, duration: 0.3 });
+      }
+
+      updateAnimVisuals();
+
+      frameCount++;
+      animFrame = requestAnimationFrame(animate);
+    }
+
+    function updateAnimVisuals() {
+      animLayer.clearLayers();
+
+      // Update completed path (permanent)
+      completedPathLayer.clearLayers();
+      const completedCoords = allPoints.slice(0, animIndex + 1).map(p => [p.lat, p.lng]);
+      completedCoords.push([currentPos.lat, currentPos.lng]);
+      if (completedCoords.length > 1) {
+        const completedLine = L.polyline(completedCoords, {
+          color: '#2196f3', weight: 4, opacity: 0.8
+        });
+        completedPathLayer.addLayer(completedLine);
+      }
+
+      // In visit mode, add markers at visited locations
+      if (visitMode) {
+        for (let i = 0; i <= animIndex; i++) {
+          const pt = allPoints[i];
+          const marker = L.circleMarker([pt.lat, pt.lng], {
+            radius: 5, color: '#2196f3', fillColor: '#fff', fillOpacity: 1, weight: 2
+          });
+          marker.bindPopup(`<b>${pt.label}</b><br>${formatTime(pt.time)}${pt.duration ? '<br>Duration: ' + pt.duration.toFixed(1) + 'h' : ''}`);
+          completedPathLayer.addLayer(marker);
+        }
+      }
+
+      // Ghost trail (last 15 points, bright red)
+      const trailStart = Math.max(0, animIndex - 15);
+      const trailCoords = allPoints.slice(trailStart, animIndex + 1).map(p => [p.lat, p.lng]);
+      trailCoords.push([currentPos.lat, currentPos.lng]);
+      if (trailCoords.length > 1) {
+        const trail = L.polyline(trailCoords, {
+          color: '#ff1744', weight: 3, opacity: 0.8
+        });
+        animLayer.addLayer(trail);
+      }
+
+      // Active segment (current movement, bright red)
+      const p1 = allPoints[animIndex];
+      const p2 = allPoints[Math.min(animIndex + 1, allPoints.length - 1)];
+      const activeLine = L.polyline([
+        [p1.lat, p1.lng],
+        [currentPos.lat, currentPos.lng]
+      ], {
+        color: '#ff1744', weight: 4, opacity: 1
+      });
+      animLayer.addLayer(activeLine);
+
+      // Moving marker — transport icon if available, red dot otherwise
+      const curTime = lerp(p1.time, p2.time, lerpProgress);
+      const transport = getTransportAtTime(curTime);
+      const emoji = transport ? (TRANSPORT_ICONS[transport] || '') : '';
+      const useIcon = emoji !== '';
+
+      const markerHtml = useIcon
+        ? `<div style="font-size:30px;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));line-height:1">${emoji}</div>`
+        : `<div class="moving-dot"></div>`;
+
+      animMarker.setIcon(L.divIcon({
+        html: markerHtml,
+        className: 'marker-container',
+        iconSize: useIcon ? [36, 36] : [16, 16],
+        iconAnchor: useIcon ? [18, 18] : [8, 8]
+      }));
+      animMarker.setLatLng([currentPos.lat, currentPos.lng]);
+      if (!map.hasLayer(animMarker)) animMarker.addTo(map);
+
+      // Update progress & time
+      const progress = (animIndex / (allPoints.length - 1)) * 100;
+      document.getElementById('progress-fill').style.width = progress + '%';
+
+      // Show visit info in visit mode
+      if (visitMode && lerpProgress < 0.01) {
+        const dur = p1.duration ? ` (${p1.duration.toFixed(1)}h)` : '';
+        document.getElementById('current-time').textContent = `${formatTime(p1.time)} — ${p1.label}${dur}`;
+      } else {
+        const curTime = lerp(p1.time, p2.time, lerpProgress);
+        document.getElementById('current-time').textContent = formatTime(curTime);
+      }
+    }
+
+    function stopAnimation() {
+      isPlaying = false;
+      document.getElementById('btn-play').textContent = '▶ Play';
+      if (animFrame) cancelAnimationFrame(animFrame);
+      animFrame = null;
+    }
+
+    function resetAnimation() {
+      stopAnimation();
+      animIndex = 0;
+      lerpProgress = 0;
+      frameCount = 0;
+      lastZoomChange = 0;
+      animLayer.clearLayers();
+      completedPathLayer.clearLayers();
+      if (map.hasLayer(animMarker)) map.removeLayer(animMarker);
+      document.getElementById('progress-fill').style.width = '0%';
+      document.getElementById('current-time').textContent = '--';
+      const first = allPoints[0];
+      map.setView([first.lat, first.lng], 12);
+    }
+
+    // ---- Init ----
+    async function init() {
+      document.getElementById('loading').classList.add('hidden');
+    }
+    }
+
+    // ---- Event listeners ----
+    document.getElementById('btn-all-paths').addEventListener('click', function () {
+      this.classList.toggle('active');
+      if (this.classList.contains('active')) {
+        if (!map.hasLayer(staticPathLayer)) map.addLayer(staticPathLayer);
+      } else {
+        if (map.hasLayer(staticPathLayer)) map.removeLayer(staticPathLayer);
+      }
+    });
+
+    document.getElementById('btn-visit-mode').addEventListener('click', function () {
+      stopAnimation();
+      visitMode = this.classList.toggle('active');
+      animIndex = 0;
+      lerpProgress = 0;
+      frameCount = 0;
+      lastZoomChange = 0;
+      animLayer.clearLayers();
+      completedPathLayer.clearLayers();
+      if (map.hasLayer(animMarker)) map.removeLayer(animMarker);
+      allPoints = visitMode ? buildVisitOnlyPoints() : buildTimelinePoints();
+      buildActivitySegments();
+      updateStats();
+      document.getElementById('progress-fill').style.width = '0%';
+      document.getElementById('current-time').textContent = '--';
+      const first = allPoints[0];
+      map.setView([first.lat, first.lng], 12);
+    });
+
+    document.getElementById('btn-play').addEventListener('click', startAnimation);
+    document.getElementById('btn-pause').addEventListener('click', stopAnimation);
+    document.getElementById('btn-reset').addEventListener('click', resetAnimation);
+
+    document.getElementById('speed-slider').addEventListener('input', function () {
+      speed = parseInt(this.value);
+      document.getElementById('speed-val').textContent = this.value;
+    });
+
+    document.getElementById('auto-zoom').addEventListener('change', function () {
+      const status = document.getElementById('zoom-status');
+      if (this.checked) {
+        status.textContent = 'ON';
+        status.style.color = '#4db6ac';
+      } else {
+        status.textContent = 'OFF';
+        status.style.color = '#ff5252';
+      }
+    });
+
+    // ---- File Upload ----
+    function handleFile(file) {
+      if (!file) return;
+      if (!file.name.endsWith('.json')) {
+        alert('Please upload a .json file');
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        alert('File too large (max 50MB)');
+        return;
+      }
+      document.getElementById('file-name').textContent = file.name;
+      document.getElementById('loading').textContent = 'Reading uploaded file...';
+      document.getElementById('loading').classList.remove('hidden');
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = JSON.parse(e.target.result);
+
+          // Validate JSON structure
+          if (!data.semanticSegments || !Array.isArray(data.semanticSegments)) {
+            alert('Invalid format: "semanticSegments" array not found.\nPlease upload a Google Timeline JSON export.');
+            document.getElementById('loading').classList.add('hidden');
+            return;
+          }
+
+          segments = data.semanticSegments;
+
+          // Validate segments have required fields
+          let validCount = 0;
+          for (const seg of segments) {
+            if (seg.startTime && (seg.visit || seg.timelinePath || seg.activity)) {
+              validCount++;
+            }
+          }
+
+          if (!validCount) {
+            alert('No valid timeline segments found.\nExpected: visit, timelinePath, or activity data.');
+            document.getElementById('loading').classList.add('hidden');
+            return;
+          }
+
+          if (validCount < segments.length) {
+            console.warn(`${segments.length - validCount} invalid segments skipped`);
+          }
+          allPoints = visitMode ? buildVisitOnlyPoints() : buildTimelinePoints();
+          buildActivitySegments();
+          updateStats();
+          // Re-init map
+          if (map) {
+            map.remove();
+          }
+          initMap();
+          renderStaticPaths();
+          document.getElementById('loading').classList.add('hidden');
+          document.getElementById('app').classList.add('loaded');
+          document.getElementById('btn-play').disabled = false;
+          document.getElementById('btn-pause').disabled = false;
+          document.getElementById('btn-reset').disabled = false;
+        } catch (err) {
+          alert('Error parsing JSON: ' + err.message);
+          document.getElementById('loading').classList.add('hidden');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // File input
+    document.getElementById('browse-btn').addEventListener('click', function () {
+      document.getElementById('file-input').click();
+    });
+    document.getElementById('drop-zone').addEventListener('click', function () {
+      document.getElementById('file-input').click();
+    });
+    document.getElementById('file-input').addEventListener('change', function () {
+      if (this.files[0]) handleFile(this.files[0]);
+    });
+
+    // Drag & drop
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      this.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', function () {
+      this.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', function (e) {
+      e.preventDefault();
+      this.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // ---- Wait for Leaflet ----
+    function checkLeaflet() {
+      if (typeof L === 'undefined' || typeof L.markerClusterGroup === 'undefined') {
+        setTimeout(checkLeaflet, 50);
+        return;
+      }
+      init();
+    }
+    window.addEventListener('load', checkLeaflet);
+  </script>
+</body>
+
+</html>
