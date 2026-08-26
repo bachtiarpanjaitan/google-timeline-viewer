@@ -460,6 +460,13 @@
         <div id="drop-zone">
           📂 Drop timeline.json here or <span id="browse-btn">browse</span>
         </div>
+        <div style="text-align:center;margin-top:8px">
+          <span id="paste-toggle" style="color:#4fc3f7;cursor:pointer;font-size:13px">or paste JSON content</span>
+        </div>
+        <div id="paste-area" class="hidden" style="margin-top:10px">
+          <textarea id="paste-input" placeholder="Paste your Google Timeline JSON here..." style="width:100%;height:150px;background:#1a1a2e;color:#e0e0e0;border:1px solid #444;border-radius:6px;padding:8px;font-size:12px;font-family:monospace;resize:vertical"></textarea>
+          <button id="paste-btn" style="margin-top:6px;padding:6px 16px;background:#4fc3f7;color:#000;border:none;border-radius:4px;cursor:pointer">Load JSON</button>
+        </div>
       </div>
       <div id="controls">
         <button id="btn-all-paths" class="active">All paths</button>
@@ -1115,88 +1122,73 @@
 
       const reader = new FileReader();
       reader.onload = function (e) {
-        try {
-          const bytes = new Uint8Array(e.target.result);
-          console.log('File bytes loaded:', bytes.length, 'bytes');
-          // Use TextDecoder for reliable cross-browser support
-          const decoder = new TextDecoder('utf-8');
-          let text = decoder.decode(bytes);
-          // Remove BOM if present
-          if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
-          // Trim whitespace
-          text = text.trim();
-          console.log('Text length after decode:', text.length, 'chars');
-          console.log('First 200 chars:', text.substring(0, 200));
-          console.log('Last 100 chars:', text.substring(text.length - 100));
-          if (!text || text.length < 10) {
-            alert('File appears to be empty or corrupted.\nRead ' + bytes.length + ' bytes but text is ' + text.length + ' chars.');
-            document.getElementById('loading').classList.add('hidden');
-            return;
-          }
-          const data = JSON.parse(text);
-
-          // Validate JSON structure
-          if (!data.semanticSegments || !Array.isArray(data.semanticSegments)) {
-            alert('Invalid format: "semanticSegments" array not found.\nPlease upload a Google Timeline JSON export.');
-            document.getElementById('loading').classList.add('hidden');
-            return;
-          }
-
-          segments = data.semanticSegments;
-
-          // Validate segments have required fields
-          let validCount = 0;
-          for (const seg of segments) {
-            if (seg.startTime && (seg.visit || seg.timelinePath || seg.activity)) {
-              validCount++;
-            }
-          }
-
-          if (!validCount) {
-            alert('No valid timeline segments found.\nExpected: visit, timelinePath, or activity data.');
-            document.getElementById('loading').classList.add('hidden');
-            return;
-          }
-
-          if (validCount < segments.length) {
-            console.warn(`${segments.length - validCount} invalid segments skipped`);
-          }
-          allPoints = visitMode ? buildVisitOnlyPoints() : buildTimelinePoints();
-          buildActivitySegments();
-          updateStats();
-          // Show map first, then init
-          document.getElementById('app').classList.add('loaded');
-          if (map) {
-            map.remove();
-          }
-          initMap();
-          renderStaticPaths();
-          // Wait for browser to render, then fix map size
-          requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              map.invalidateSize();
-              map.setView([allPoints[0].lat, allPoints[0].lng], 12);
-            });
-          });
-          document.getElementById('loading').classList.add('hidden');
-          document.getElementById('btn-play').disabled = false;
-          document.getElementById('btn-pause').disabled = false;
-          document.getElementById('btn-reset').disabled = false;
-        } catch (err) {
-          console.error('JSON parse error:', err);
-          console.log('File size:', file.size, 'bytes');
-          alert('Error parsing JSON: ' + err.message +
-            '\n\nFile: ' + file.name +
-            '\nSize reported: ' + (file.size / 1024).toFixed(1) + 'KB' +
-            '\n\nTip: Open browser console (F12) for debug info.');
-          document.getElementById('loading').classList.add('hidden');
-        }
+        processJsonText(e.target.result);
       };
       reader.onerror = function () {
         alert('Error reading file. Please try again.');
         document.getElementById('loading').classList.add('hidden');
       };
-      reader.readAsArrayBuffer(file);
+      reader.readAsText(file);
+    }
+
+    function processJsonText(text) {
+      try {
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+        text = text.trim();
+        if (!text || text.length < 10) {
+          alert('File appears to be empty or corrupted.');
+          document.getElementById('loading').classList.add('hidden');
+          return;
+        }
+        const data = JSON.parse(text);
+
+        if (!data.semanticSegments || !Array.isArray(data.semanticSegments)) {
+          alert('Invalid format: "semanticSegments" array not found.\nPlease upload a Google Timeline JSON export.');
+          document.getElementById('loading').classList.add('hidden');
+          return;
+        }
+
+        segments = data.semanticSegments;
+
+        let validCount = 0;
+        for (const seg of segments) {
+          if (seg.startTime && (seg.visit || seg.timelinePath || seg.activity)) {
+            validCount++;
+          }
+        }
+
+        if (!validCount) {
+          alert('No valid timeline segments found.\nExpected: visit, timelinePath, or activity data.');
+          document.getElementById('loading').classList.add('hidden');
+          return;
+        }
+
+        if (validCount < segments.length) {
+          console.warn(`${segments.length - validCount} invalid segments skipped`);
+        }
+        allPoints = visitMode ? buildVisitOnlyPoints() : buildTimelinePoints();
+        buildActivitySegments();
+        updateStats();
+        document.getElementById('app').classList.add('loaded');
+        if (map) {
+          map.remove();
+        }
+        initMap();
+        renderStaticPaths();
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            map.invalidateSize();
+            map.setView([allPoints[0].lat, allPoints[0].lng], 12);
+          });
+        });
+        document.getElementById('loading').classList.add('hidden');
+        document.getElementById('btn-play').disabled = false;
+        document.getElementById('btn-pause').disabled = false;
+        document.getElementById('btn-reset').disabled = false;
+      } catch (err) {
+        alert('Error parsing JSON: ' + err.message + '\n\nMake sure you upload a valid Google Timeline JSON export file.');
+        document.getElementById('loading').classList.add('hidden');
+      }
     }
 
     // File input
@@ -1223,6 +1215,21 @@
       e.preventDefault();
       this.classList.remove('dragover');
       if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // Paste JSON toggle
+    document.getElementById('paste-toggle').addEventListener('click', function () {
+      document.getElementById('paste-area').classList.toggle('hidden');
+    });
+    document.getElementById('paste-btn').addEventListener('click', function () {
+      const text = document.getElementById('paste-input').value;
+      if (!text.trim()) {
+        alert('Please paste JSON content first.');
+        return;
+      }
+      document.getElementById('loading').textContent = 'Processing JSON...';
+      document.getElementById('loading').classList.remove('hidden');
+      processJsonText(text);
     });
 
     // ---- Sidebar toggle (mobile) ----
